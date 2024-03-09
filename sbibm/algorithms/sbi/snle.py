@@ -65,6 +65,8 @@ def run(
     Returns:
         Samples from posterior, number of simulator calls, log probability of true params if computable
     """
+    
+    print("SNLE-A")
     assert not (num_observation is None and observation is None)
     assert not (num_observation is not None and observation is not None)
 
@@ -84,7 +86,6 @@ def run(
     if training_batch_size > num_simulations_per_round:
         training_batch_size = num_simulations_per_round
         log.warn("Reduced training_batch_size to num_simulation_per_round")
-
     prior = task.get_prior_dist()
     if observation is None:
         observation = task.get_observation(num_observation)

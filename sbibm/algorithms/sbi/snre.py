@@ -108,11 +108,21 @@ def run(
         z_score_theta=z_score_theta,
     )
     if variant == "A":
+        print("SNRE-A")
         inference_class = inference.SNRE_A
         training_kwargs = {}
     elif variant == "B":
+        print("SNRE-B")
         inference_class = inference.SNRE_B
         training_kwargs = {"num_atoms": num_atoms}
+    elif variant == "C":
+        print("SNRE-C")
+        inference_class = inference.SNRE_C
+        training_kwargs = {"num_classes": 5,"gamma": 1.0}
+    elif variant == "D":
+        print("BNRE")
+        inference_class = inference.BNRE
+        training_kwargs = {"regularization_strength": 100.0}
     else:
         raise NotImplementedError
 

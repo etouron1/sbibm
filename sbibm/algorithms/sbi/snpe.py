@@ -30,6 +30,7 @@ def run(
     z_score_x: str = "independent",
     z_score_theta: str = "independent",
     max_num_epochs: Optional[int] = 2**31 - 1,
+    variant: str = "C",
 ) -> Tuple[torch.Tensor, int, Optional[torch.Tensor]]:
     """Runs (S)NPE from `sbi`
 
@@ -49,6 +50,7 @@ def run(
         z_score_x: Whether to z-score x
         z_score_theta: Whether to z-score theta
         max_num_epochs: Maximum number of epochs
+        variant: Can be used to switch between SNPE-A and -C (APT)
 
     Returns:
         Samples from posterior, number of simulator calls, log probability of true params if computable
@@ -91,8 +93,19 @@ def run(
         z_score_x=z_score_x,
         z_score_theta=z_score_theta,
     )
+    if variant=="C":
+        print("SNPE-C")
+        inference_method = inference.SNPE_C(prior, density_estimator=density_estimator_fun)
+        training_kwargs = {"num_atoms":num_atoms,"discard_prior_samples":False,
+                "use_combined_loss":False}
+    elif variant=="A":
+        print("SNPE-A")
+        #only the density estimator "mdn_snpe_a" works
+        inference_method = inference.SNPE_A(prior,num_components=10)
+        training_kwargs = {}
 
-    inference_method = inference.SNPE_C(prior, density_estimator=density_estimator_fun)
+    else:
+        raise NotImplementedError
     posteriors = []
     proposal = prior
 
@@ -103,17 +116,14 @@ def run(
             num_simulations=num_simulations_per_round,
             simulation_batch_size=simulation_batch_size,
         )
-
         density_estimator = inference_method.append_simulations(
             theta, x, proposal=proposal
         ).train(
-            num_atoms=num_atoms,
             training_batch_size=training_batch_size,
             retrain_from_scratch=False,
-            discard_prior_samples=False,
-            use_combined_loss=False,
             show_train_summary=True,
             max_num_epochs=max_num_epochs,
+            **training_kwargs,
         )
         posterior = inference_method.build_posterior(density_estimator)
         proposal = posterior.set_default_x(observation)
