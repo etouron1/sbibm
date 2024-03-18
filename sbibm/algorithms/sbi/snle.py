@@ -149,11 +149,12 @@ def run(
             **mcmc_parameters,
         )
         #change
-        import pandas as pd
-        posterior_samples = posterior.sample((num_samples,))
-        posterior_samples = pd.DataFrame(posterior_samples.detach().numpy(),columns=["0", "1"])
-        posterior_samples=posterior_samples.assign(label="active")
-        posterior_samples.to_csv(f"gaussian_mixture_{num_samples}_posterior_samples_snle-A-{neural_net}_{r+1}_round_{num_simulations}_ntrain.csv", header=False, index=False)
+        if r>=7:
+            import pandas as pd
+            posterior_samples = posterior.sample((num_samples,))
+            posterior_samples = pd.DataFrame(posterior_samples.detach().numpy(),columns=["0", "1"])
+            posterior_samples=posterior_samples.assign(label="active")
+            posterior_samples.to_csv(f"gaussian_mixture_{num_samples}_posterior_samples_snle-A-{neural_net}_{r+1}_round_{num_simulations}_ntrain.csv", header=False, index=False)
         #change
         # Change init_strategy to latest_sample after second round.
         if r > 1:
