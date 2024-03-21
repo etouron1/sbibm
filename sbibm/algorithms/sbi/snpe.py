@@ -109,7 +109,7 @@ def run(
     posteriors = []
     proposal = prior
 
-    for _ in range(num_rounds):
+    for r in range(num_rounds):
         theta, x = inference.simulate_for_sbi(
             simulator,
             proposal,
@@ -129,11 +129,20 @@ def run(
         proposal = posterior.set_default_x(observation)
         posteriors.append(posterior)
 
+        import pandas as pd
+        posterior_sampling = posterior.set_default_x(observation)
+        posterior_sampling = wrap_posterior(posterior, transforms)
+        posterior_samples = posterior_sampling.sample((num_samples,))
+        posterior_samples = pd.DataFrame(posterior_samples.detach().numpy(),columns=["0", "1"])
+        posterior_samples=posterior_samples.assign(label="active")
+        posterior_samples.to_csv(f"_{num_samples}_posterior_samples_snpe-C-{neural_net}_{r+1}_round_{num_simulations}_ntrain.csv", header=False, index=False)
+
     posterior = wrap_posterior(posteriors[-1], transforms)
 
     assert simulator.num_simulations == num_simulations
 
     samples = posterior.sample((num_samples,)).detach()
+    
 
     if num_observation is not None:
         true_parameters = task.get_true_parameters(num_observation=num_observation)
