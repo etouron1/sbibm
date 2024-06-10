@@ -12,7 +12,8 @@ from sbibm.algorithms.sbi.utils import (
     wrap_simulator_fn,
 )
 from sbibm.tasks.task import Task
-
+from sbibm.metrics import c2st, mmd
+import csv
 
 def run(
     task: Task,
@@ -82,7 +83,7 @@ def run(
     simulator = task.get_simulator(max_calls=num_simulations)
 
     transforms = task._get_transforms(automatic_transforms_enabled)["parameters"]
-
+    
     if automatic_transforms_enabled:
         prior = wrap_prior_dist(prior, transforms)
         simulator = wrap_simulator_fn(simulator, transforms)
@@ -103,46 +104,66 @@ def run(
         #only the density estimator "mdn_snpe_a" works
         inference_method = inference.SNPE_A(prior,num_components=10)
         training_kwargs = {}
-
+    elif variant=="B":
+        print("SNPE-B")
+        inference_method = inference.SNPE_B(prior=prior, density_estimator=neural_net, observation=observation)
+        training_kwargs = {}
+    elif variant=="D":
+        print("SNPE-D")
+        inference_method = inference.SNPE_D(prior=prior, density_estimator=neural_net)
+        training_kwargs = {}
     else:
         raise NotImplementedError
+    
     posteriors = []
     proposal = prior
+    
+    with open(f"snpe_{variant}_accuracy_{num_observation}_obs_{neural_net}.csv", "w") as f:
+            writer = csv.writer(f)
+            writer.writerow(["round", "c2st", "mmd"])
 
     for r in range(num_rounds):
+        print(f"round {r}")
         theta, x = inference.simulate_for_sbi(
             simulator,
             proposal,
             num_simulations=num_simulations_per_round,
             simulation_batch_size=simulation_batch_size,
         )
+        
         density_estimator = inference_method.append_simulations(
-            theta, x, proposal=proposal
-        ).train(
+            theta, x, proposal=proposal)
+                
+        density_estimator = density_estimator.train(
             training_batch_size=training_batch_size,
             retrain_from_scratch=False,
             show_train_summary=True,
             max_num_epochs=max_num_epochs,
+            #force_first_round_loss=True,
             **training_kwargs,
         )
         posterior = inference_method.build_posterior(density_estimator)
         proposal = posterior.set_default_x(observation)
+        
         posteriors.append(posterior)
-
-        import pandas as pd
+        
         posterior_sampling = posterior.set_default_x(observation)
         posterior_sampling = wrap_posterior(posterior, transforms)
         posterior_samples = posterior_sampling.sample((num_samples,))
-        posterior_samples = pd.DataFrame(posterior_samples.detach().numpy(),columns=["0", "1"])
-        posterior_samples=posterior_samples.assign(label="active")
-        posterior_samples.to_csv(f"_{num_samples}_posterior_samples_snpe-C-{neural_net}_{r+1}_round_{num_simulations}_ntrain.csv", header=False, index=False)
+        reference_samples = task.get_reference_posterior_samples(num_observation=num_observation)
+        
+        accuracy_c2st = c2st(reference_samples, posterior_samples).item()
+        accuracy_mmd = mmd(reference_samples, posterior_samples).item()
+        
+        with open(f"snpe_{variant}_accuracy_{num_observation}_obs_{neural_net}.csv",  "a") as f:
+            writer = csv.writer(f)
+            writer.writerow([r+1, accuracy_c2st, accuracy_mmd])
 
     posterior = wrap_posterior(posteriors[-1], transforms)
-
+    
     assert simulator.num_simulations == num_simulations
 
     samples = posterior.sample((num_samples,)).detach()
-    
 
     if num_observation is not None:
         true_parameters = task.get_true_parameters(num_observation=num_observation)
